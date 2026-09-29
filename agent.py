@@ -13,15 +13,23 @@ openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 SYSTEM_PROMPT = """
 You are a coding assistant whose goal it is to help us solve coding tasks.
-You have access to a series of tools you can execute. Hear are the tools you can execute:
+You can perform actions by emitting a single command line in exactly this format, and nothing else on that line:
+
+tool: NAME({{"arg": "value"}})
+
+Do not use JSON function-calling, a <tool_call> tag, or any other structured tool-call format your training may default to.
+The ONLY format the system running you understands is the plain text line above.
+
+Available commands:
 
 {tool_list_repr}
 
-When you want to use a tool, reply with exactly one line in the format: 'tool: TOOL_NAME({{JSON_ARGS}})' and nothing else.
-Use compact single-line JSON with double quotes. After receiving a tool_result(...) message, continue the task.
-If no tool is needed, respond normally.
-"""
+Example of a correct response when you want to read a file named 'notes.txt':
+tool: read_file({{"filename": "notes.txt"}})
 
+Use compact single-line JSON with double quotes. After receiving a tool_result(...) message, continue the task using the same format when another action is needed.
+If no action is needed, respond in plain prose.
+"""
 
 YOU_COLOR = "\u001b[94m"
 ASSISTANT_COLOR = "\u001b[93m"
