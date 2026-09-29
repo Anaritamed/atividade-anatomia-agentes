@@ -145,7 +145,7 @@ def extract_tool_invocations(text: str) -> List[Tuple[str, Dict[str, Any]]]:
 
 def execute_llm_call(conversation: List[Dict[str, str]]):
     response = openai_client.chat.completions.create(
-        model="gpt-5",
+        model="llama-3.3-70b-versatile",
         messages=conversation,
         max_completion_tokens=2000
     )
