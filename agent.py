@@ -139,49 +139,50 @@ def extract_tool_invocations(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line.startswith("tool:"):
-            print(">>> THOUGHT: ", line)
             continue
         try:
             after = line[len("tool:"):].strip()
             name, rest = after.split("(", 1)
             name = name.strip()
-            print(">>> ACTION: ", name)
+            print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} ", name)
             if not rest.endswith(")"):
-                print(">>> THOUGHT: CHAMADA DE FERRAMENTA INVÁLIDA, JSON NÃO TERMINA COM ')': ", rest)
                 continue
             json_str = rest[:-1].strip()
             args = json.loads(json_str)
             invocations.append((name, args))
+            print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} É preciso invocar a ferramenta: {name} com os argumentos: {args}")
         except Exception:
+            print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} Não consegui interpretar a chamada da ferramenta: ", line)
             continue
     return invocations
 
 def execute_llm_call(conversation: List[Dict[str, str]]):
-    print(">>> ACTION: CHAMADA A LLM")
+    print(f"{ASSISTANT_COLOR}>>> CONTEXTO: {RESET_COLOR} ", json.dumps([message for message in conversation], indent=4, ensure_ascii=False))
+    print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} chamada a LLM")
     response = openai_client.chat.completions.create(
         model="qwen/qwen3.8-27b",
         messages=conversation,
-        max_tokens=1000
+        max_tokens=9000
     )
+    print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} ", response.choices[0].message.content)
     return response.choices[0].message.content
 
 def run_coding_agent_loop():
     print(get_full_system_prompt())
-    print(">>> ACTION: INICIANDO LOOP DO AGENTE DE CODIFICAÇÃO")
+    print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} Iniciando o loop do agente de codificação.")
     conversation = [{
         "role": "system",
         "content": get_full_system_prompt()
     }]
-    print(">>> THOUGHT: CONVERSA ATUAL: ", conversation[0]["content"])
     iteracao = 0
     while True:
-        print(">>> LOOP: ", iteracao)
+        print(f"{ASSISTANT_COLOR}>>> LOOP:{RESET_COLOR} ", iteracao)
         iteracao += 1
         try:
             user_input = input(f"{YOU_COLOR}You:{RESET_COLOR}:")
-            print(">>> THOUGHT: O USUÁRIO PEDIU: ", user_input)
+            print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} O usuário pediu: ", user_input)
         except (KeyboardInterrupt, EOFError):
-            print(">>> ACTION: SAÍDA KeyboardInterrupt/EOFError")
+            print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} saída inesperada - KeyboardInterrupt/EOFError \n")
             break
         conversation.append({
             "role": "user",
@@ -190,28 +191,27 @@ def run_coding_agent_loop():
         while True:
             assistant_response = execute_llm_call(conversation)
             tool_invocations = extract_tool_invocations(assistant_response)
-            print(">>> THOUGHT: VOU INVOCAR AS FERRAMENTAS: ", tool_invocations)
             if not tool_invocations:
                 print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR}: {assistant_response}")
                 conversation.append({
                     "role": "assistant",
                     "content": assistant_response
                 })
-                print(">>> THOUGHT: NÃO HÁ FERRAMENTAS A SEREM INVOCADAS")
-                print(">>> ACTION: VOLTANDO AO LOOP PRINCIPAL PARA NOVA ENTRADA DO USUÁRIO")
+                print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} não há mais ferramentas a invocar")
+                print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} voltando ao loop principal para nova entrada do usuário")
                 break
             for name, args in tool_invocations:
                 tool = TOOL_REGISTRY[name]
                 resp = ""
-                print(">>> ACTION: INVOCANDO FERRAMENTA: ", name, args)
+                print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} invocando a tool ", name, args)
                 if name == "read_file":
-                    print(">>> ACTION: LENDO ARQUIVO: ", args.get("filename", "."))
+                    print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} lendo o arquvio ", args.get("filename", "."))
                     resp = tool(args.get("filename", "."))
                 elif name == "list_files":
-                    print(">>> ACTION: LISTANDO ARQUIVOS: ", args.get("path", "."))
+                    print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} listando arquivos ", args.get("path", "."))
                     resp = tool(args.get("path", "."))
                 elif name == "edit_file":
-                    print(">>> ACTION: EDITANDO ARQUIVO: ", args.get("path", "."))
+                    print(f"{ASSISTANT_COLOR}>>> ACTION:{RESET_COLOR} editando arquivo ", args.get("path", "."))
                     resp = tool(args.get("path", "."),
                                 args.get("old_str", ""),
                                 args.get("new_str", ""))
@@ -219,7 +219,7 @@ def run_coding_agent_loop():
                     "role": "user",
                     "content": f"tool_result({json.dumps(resp)})"
                 })
-                print(">>> THOUGHT: FERRAMENTA INVOCADA, RESULTADO: ", resp[0]["content"] if isinstance(resp, list) and len(resp) > 0 else resp)
+                print(f"{ASSISTANT_COLOR}>>> THOUGHT:{RESET_COLOR} Resultado da ferramenta:", json.dumps(resp, indent=4, ensure_ascii=False))
 
 
 if __name__ == "__main__":
