@@ -139,12 +139,15 @@ def extract_tool_invocations(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line.startswith("tool:"):
+            print(">>> THOUGHT: ", line)
             continue
         try:
             after = line[len("tool:"):].strip()
             name, rest = after.split("(", 1)
             name = name.strip()
+            print(">>> ACTION: ", name)
             if not rest.endswith(")"):
+                print(">>> THOUGHT: CHAMADA DE FERRAMENTA INVÁLIDA, JSON NÃO TERMINA COM ')': ", rest)
                 continue
             json_str = rest[:-1].strip()
             args = json.loads(json_str)
@@ -154,23 +157,31 @@ def extract_tool_invocations(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     return invocations
 
 def execute_llm_call(conversation: List[Dict[str, str]]):
+    print(">>> ACTION: CHAMADA A LLM")
     response = openai_client.chat.completions.create(
         model="qwen/qwen3.8-27b",
         messages=conversation,
-        max_completion_tokens=2000
+        max_tokens=1000
     )
     return response.choices[0].message.content
 
 def run_coding_agent_loop():
     print(get_full_system_prompt())
+    print(">>> ACTION: INICIANDO LOOP DO AGENTE DE CODIFICAÇÃO")
     conversation = [{
         "role": "system",
         "content": get_full_system_prompt()
     }]
+    print(">>> THOUGHT: CONVERSA ATUAL: ", conversation[0]["content"])
+    iteracao = 0
     while True:
+        print(">>> LOOP: ", iteracao)
+        iteracao += 1
         try:
             user_input = input(f"{YOU_COLOR}You:{RESET_COLOR}:")
+            print(">>> THOUGHT: O USUÁRIO PEDIU: ", user_input)
         except (KeyboardInterrupt, EOFError):
+            print(">>> ACTION: SAÍDA KeyboardInterrupt/EOFError")
             break
         conversation.append({
             "role": "user",
@@ -179,22 +190,28 @@ def run_coding_agent_loop():
         while True:
             assistant_response = execute_llm_call(conversation)
             tool_invocations = extract_tool_invocations(assistant_response)
+            print(">>> THOUGHT: VOU INVOCAR AS FERRAMENTAS: ", tool_invocations)
             if not tool_invocations:
                 print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR}: {assistant_response}")
                 conversation.append({
                     "role": "assistant",
                     "content": assistant_response
                 })
+                print(">>> THOUGHT: NÃO HÁ FERRAMENTAS A SEREM INVOCADAS")
+                print(">>> ACTION: VOLTANDO AO LOOP PRINCIPAL PARA NOVA ENTRADA DO USUÁRIO")
                 break
             for name, args in tool_invocations:
                 tool = TOOL_REGISTRY[name]
                 resp = ""
-                print(name, args)
+                print(">>> ACTION: INVOCANDO FERRAMENTA: ", name, args)
                 if name == "read_file":
+                    print(">>> ACTION: LENDO ARQUIVO: ", args.get("filename", "."))
                     resp = tool(args.get("filename", "."))
                 elif name == "list_files":
+                    print(">>> ACTION: LISTANDO ARQUIVOS: ", args.get("path", "."))
                     resp = tool(args.get("path", "."))
                 elif name == "edit_file":
+                    print(">>> ACTION: EDITANDO ARQUIVO: ", args.get("path", "."))
                     resp = tool(args.get("path", "."),
                                 args.get("old_str", ""),
                                 args.get("new_str", ""))
@@ -202,6 +219,7 @@ def run_coding_agent_loop():
                     "role": "user",
                     "content": f"tool_result({json.dumps(resp)})"
                 })
+                print(">>> THOUGHT: FERRAMENTA INVOCADA, RESULTADO: ", resp[0]["content"] if isinstance(resp, list) and len(resp) > 0 else resp)
 
 
 if __name__ == "__main__":
